@@ -1,0 +1,8 @@
+# Dependencias del componente de inferencia.
+# Despues de comprobar que todo funciona, fija las versiones exactas con:
+#   python\.venv\Scripts\python.exe -m pip freeze > python\requirements.txt
+ultralytics
+# SAM 3 necesita timm. Con Python 3.15 no se instala con "pip install timm" (pyyaml no tiene paquete),
+# por eso se instala sin dependencias; ultralytics no usa pyyaml:
+#   python\.venv\Scripts\python.exe -m pip install --no-deps timm
+#   python\.venv\Scripts\python.exe -m pip install huggingface_hub safetensors
