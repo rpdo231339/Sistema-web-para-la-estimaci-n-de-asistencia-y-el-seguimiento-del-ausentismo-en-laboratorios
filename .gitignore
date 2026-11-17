@@ -1,0 +1,50 @@
+*.log
+.DS_Store
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+Homestead.json
+Homestead.yaml
+Thumbs.db
+
+# --- Proyecto Asistencia ---
+# Entorno virtual de Python y cache
+# (cualquier carpeta de entorno virtual, tambien la copia en python/python)
+.venv/
+venv/
+/python/python/
+__pycache__/
+*.pyc
+
+# Modelos (SAM 3 pesa ~3 GB; GitHub rechaza archivos de mas de 100 MB)
+*.pt
+/python/modelos/*.json
+/python/runs
+/python/foto.jpg
+
+# Archivos generados por el sistema (evidencias, respaldos, resultados)
+/storage/app/private
+/storage/app/public
+/storage/logs
+/storage/framework/cache/data
+/storage/framework/sessions
+/storage/framework/views
+
+# Archivos vacios creados por error en la raiz
+/*()
