@@ -25,6 +25,10 @@
     <a href="{{ route('pases.index') }}" class="btn btn-secondary">Volver</a>
 </div>
 
+@if ($hayAnalisisEnCurso)
+    @include('partials.analisis_en_curso')
+@endif
+
 {{-- Informacion de la clase (copia historica de la sesion) --}}
 <div class="card shadow-sm mb-3">
     <div class="card-body">
@@ -93,7 +97,7 @@
                                         <span class="badge text-bg-danger">Error</span>
                                         <span class="text-muted small d-block">{{ $proc->error }}</span>
                                     @else
-                                        <span class="badge text-bg-warning">{{ $proc->estado === 'pendiente' ? 'En espera' : 'Analizando…' }}</span>
+                                        @include('partials.estado_analisis', ['estado' => $proc->estado])
                                         @if ($proc->estado === 'pendiente' && $proc->created_at->lt(now()->subMinutes(2)))
                                             <span class="text-danger small d-block">En espera {{ $proc->created_at->diffForHumans(null, true) }}. El procesador en segundo plano podría estar detenido; avisa al administrador.</span>
                                         @endif
@@ -104,7 +108,7 @@
                                 </td>
                                 <td>
                                     @if ($vigente && !($proc && in_array($proc->estado, ['pendiente', 'en_proceso'])))
-                                        <form action="{{ route('pases.analizar', $pase->id) }}" method="POST" class="mb-1"
+                                        <form action="{{ route('pases.analizar', $pase->id) }}" method="POST" class="mb-1" data-cargando="Iniciando…"
                                             @if ($proc && $proc->estado === 'procesado') onsubmit="return confirm('Un análisis nuevo reemplaza el resultado actual y exige revisarlo de nuevo. ¿Continuar?');" @endif>
                                             @csrf
                                             <input type="hidden" name="clave_operacion" value="{{ hash('sha256', (string) \Illuminate\Support\Str::uuid()) }}">
@@ -151,7 +155,7 @@
             <h2 class="h5 mb-1">Cargar imagen</h2>
             <p class="text-muted small">Formatos JPG, JPEG y PNG, hasta {{ $maxMb }} MB. Si el momento ya tiene una imagen, la nueva se guarda como una versión nueva y pasa a ser la vigente. Cargar un archivo no ejecuta el análisis.</p>
 
-            <form action="{{ route('pases.subir', $sesion->id) }}" method="POST" enctype="multipart/form-data" id="form-carga">
+            <form action="{{ route('pases.subir', $sesion->id) }}" method="POST" enctype="multipart/form-data" id="form-carga" data-cargando="Cargando imagen…">
                 @csrf
 
                 <div class="row">

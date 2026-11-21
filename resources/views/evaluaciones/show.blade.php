@@ -16,6 +16,10 @@
     <a href="{{ route('evaluaciones.index') }}" class="btn btn-secondary">Volver</a>
 </div>
 
+@if ($enCurso)
+    @include('partials.analisis_en_curso')
+@endif
+
 <div class="row g-3">
 
     <div class="col-lg-7">
@@ -81,7 +85,7 @@
                 @elseif ($p->estado === 'error')
                     <div class="alert alert-danger small mb-0">{{ $p->error }}</div>
                 @else
-                    <span class="badge text-bg-warning">{{ $p->estado === 'pendiente' ? 'En espera' : 'Analizando…' }}</span>
+                    @include('partials.estado_analisis', ['estado' => $p->estado])
                     @if ($p->estado === 'pendiente' && $p->created_at->lt(now()->subMinutes(2)))
                         <span class="text-danger small d-block">En espera {{ $p->created_at->diffForHumans(null, true) }}. Comprueba que el procesador en segundo plano esté activo.</span>
                     @endif
@@ -134,7 +138,7 @@
         @endif
 
         @if (!$enCurso)
-            <form action="{{ route('evaluaciones.analizar', $evaluacion->id) }}" method="POST"
+            <form action="{{ route('evaluaciones.analizar', $evaluacion->id) }}" method="POST" data-cargando="Iniciando…"
                 @if ($p->estado === 'procesado') onsubmit="return confirm('Un análisis nuevo reemplaza el resultado actual de esta evaluación. ¿Continuar?');" @endif>
                 @csrf
                 <input type="hidden" name="clave_operacion" value="{{ hash('sha256', (string) \Illuminate\Support\Str::uuid()) }}">

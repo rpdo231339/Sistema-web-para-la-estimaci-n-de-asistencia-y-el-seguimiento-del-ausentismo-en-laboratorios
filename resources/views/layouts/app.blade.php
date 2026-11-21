@@ -134,5 +134,36 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Formularios con data-cargando="Texto": al enviarse, el boton se desactiva (evita envios dobles)
+        // y muestra una ruedita con ese texto mientras el servidor responde
+        document.querySelectorAll('form[data-cargando]').forEach(function (formulario) {
+            formulario.addEventListener('submit', function (evento) {
+                if (evento.defaultPrevented) { return; }
+
+                const boton = formulario.querySelector('button[type="submit"]');
+
+                if (!boton) { return; }
+
+                // Se espera un instante para que el navegador alcance a enviar el formulario
+                setTimeout(function () {
+                    boton.dataset.original = boton.innerHTML;
+                    boton.disabled = true;
+                    boton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>' + formulario.dataset.cargando;
+                }, 0);
+            });
+        });
+
+        // Si el usuario regresa con el boton "atras" del navegador, los botones vuelven a su estado normal
+        window.addEventListener('pageshow', function (evento) {
+            if (!evento.persisted) { return; }
+
+            document.querySelectorAll('form[data-cargando] button[data-original]').forEach(function (boton) {
+                boton.innerHTML = boton.dataset.original;
+                boton.disabled = false;
+            });
+        });
+    </script>
 </body>
 </html>

@@ -21,6 +21,10 @@
     </div>
 </div>
 
+@if (!empty($hayEnCurso))
+    @include('partials.analisis_en_curso')
+@endif
+
 <p class="text-muted small">
     Cada evaluación compara el conteo automático de una imagen estática con el número de personas visibles que cuentas tú.
     Las métricas se calculan imagen por imagen y no suman personas entre imágenes.
@@ -158,7 +162,7 @@
                             @elseif ($p->estado === 'error')
                                 <span class="badge text-bg-danger">Error</span>
                             @else
-                                <span class="badge text-bg-warning">{{ $p->estado === 'pendiente' ? 'En espera' : 'Analizando…' }}</span>
+                                @include('partials.estado_analisis', ['estado' => $p->estado])
                             @endif
                         </td>
                         <td><a href="{{ route('evaluaciones.show', $e->id) }}" class="btn btn-primary btn-sm">Ver</a></td>

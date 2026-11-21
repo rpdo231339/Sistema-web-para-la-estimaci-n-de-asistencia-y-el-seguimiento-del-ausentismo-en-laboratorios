@@ -11,7 +11,7 @@
             <div class="alert alert-danger small">{{ $message }}</div>
         @enderror
 
-        <form action="{{ route('evaluaciones.store') }}" method="POST" enctype="multipart/form-data">
+        <form action="{{ route('evaluaciones.store') }}" method="POST" enctype="multipart/form-data" data-cargando="Registrando…">
             @csrf
             <input type="hidden" name="clave_operacion" value="{{ hash('sha256', (string) \Illuminate\Support\Str::uuid()) }}">
 
