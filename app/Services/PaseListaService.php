@@ -33,7 +33,7 @@ class PaseListaService
             $hora = $horas[$momento];
 
             if ($hora < $inicio || $hora > $fin) {
-                $errores["momentos.$momento"] = "El momento de $momento debe estar dentro del horario de la sesión ($inicio–$fin)";
+                $errores["momentos.$momento"] = "El momento de $momento debe estar dentro del horario de la sesión ({$inicio}–{$fin})";
             }
         }
 

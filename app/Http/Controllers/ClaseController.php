@@ -6,15 +6,20 @@ use App\Models\Clase;
 use App\Models\Espacio;
 use App\Models\Grupo;
 use App\Models\HorarioClase;
+use App\Models\Sesion;
+use App\Services\AuditoriaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ClaseController extends Controller
 {
     private const MENSAJE_SIN_PERMISO = 'No tienes permiso para gestionar esa clase';
+    private const MENSAJE_DUPLICADA = 'Ya existe una clase vigente con esa asignatura para el grupo seleccionado';
 
     public function index(Request $request)
     {
@@ -43,6 +48,11 @@ class ClaseController extends Controller
 
         $clases = $consulta->orderBy('asignatura')->paginate(10)->withQueryString();
 
+        // Solo se puede eliminar definitivamente una clase sin sesiones registradas
+        $ids = $clases->pluck('id');
+        $conSesiones = Sesion::whereIn('clase_id', $ids)->pluck('clase_id')->unique();
+        $eliminables = $ids->diff($conSesiones)->values();
+
         // Periodos de los grupos que usa este profesor, para el filtro
         $periodos = Grupo::whereIn('id', Clase::where('profesor_id', $profesorId)->select('grupo_id'))
             ->select('periodo')
@@ -50,7 +60,7 @@ class ClaseController extends Controller
             ->orderByDesc('periodo')
             ->pluck('periodo');
 
-        return view('clases.index', compact('clases', 'periodos'));
+        return view('clases.index', compact('clases', 'periodos', 'eliminables'));
     }
 
     public function create()
@@ -64,8 +74,11 @@ class ClaseController extends Controller
 
     public function store(Request $request)
     {
+        $this->normalizar($request);
+
         $request->validate($this->reglas(), $this->mensajes(), $this->atributos());
 
+        $this->validarDuplicada($request);
         $this->validarBloques($request);
 
         DB::transaction(function () use ($request) {
@@ -132,8 +145,11 @@ class ClaseController extends Controller
             return redirect()->route('clases.index')->with('error', self::MENSAJE_SIN_PERMISO);
         }
 
+        $this->normalizar($request);
+
         $request->validate($this->reglas($clase), $this->mensajes(), $this->atributos());
 
+        $this->validarDuplicada($request, $clase);
         $this->validarBloques($request, $clase);
 
         DB::transaction(function () use ($request, $clase) {
@@ -185,12 +201,76 @@ class ClaseController extends Controller
 
         $nuevoVigente = !$clase->vigente;
 
+        // Reactivar no puede dejar dos clases vigentes iguales en el mismo grupo
+        if ($nuevoVigente && $this->existeDuplicada($clase->grupo_id, $clase->asignatura, $clase)) {
+            return back()->with('error', self::MENSAJE_DUPLICADA . '. Desactiva o edita la otra clase antes de reactivar esta');
+        }
+
         $clase->update(['vigente' => $nuevoVigente]);
 
         return back()->with(
             'success',
             $nuevoVigente ? 'Clase reactivada correctamente' : 'Clase desactivada correctamente'
         );
+    }
+
+    // Eliminacion definitiva: solo si la clase no tiene sesiones; si las tiene, se desactiva
+    public function eliminar(Clase $clase, AuditoriaService $auditoria)
+    {
+        if (!$this->esTitular($clase)) {
+            return redirect()->route('clases.index')->with('error', self::MENSAJE_SIN_PERMISO);
+        }
+
+        if (Sesion::where('clase_id', $clase->id)->exists()) {
+            return back()->with('error', 'No se puede eliminar definitivamente: la clase ya tiene sesiones registradas. Desactívala para conservar su historial');
+        }
+
+        try {
+            DB::transaction(function () use ($clase, $auditoria) {
+                $auditoria->registrar('clases', $clase->id, 'eliminacion_definitiva', [
+                    'asignatura' => $clase->asignatura,
+                    'grupo_id' => $clase->grupo_id,
+                    'inscritos' => $clase->inscritos,
+                    'bloques' => $clase->horarios()->count(),
+                ], null, null);
+
+                // Los bloques pertenecen a la clase y se eliminan con ella
+                $clase->horarios()->delete();
+                $clase->delete();
+            });
+        } catch (QueryException $e) {
+            return back()->with('error', 'No se pudo eliminar la clase porque tiene registros relacionados. Desactívala en su lugar');
+        }
+
+        return redirect()->route('clases.index')
+            ->with('success', 'Clase eliminada definitivamente');
+    }
+
+    // Quita espacios repetidos para que "Redes  I" y "Redes I" cuenten como la misma asignatura
+    private function normalizar(Request $request): void
+    {
+        $request->merge(['asignatura' => Str::squish((string) $request->asignatura)]);
+    }
+
+    // Una misma asignatura no se registra dos veces como clase vigente del mismo grupo
+    private function existeDuplicada($grupoId, string $asignatura, ?Clase $ignorar = null): bool
+    {
+        $consulta = Clase::where('grupo_id', $grupoId)
+            ->where('asignatura', Str::squish($asignatura))
+            ->where('vigente', 1);
+
+        if ($ignorar) {
+            $consulta->where('id', '<>', $ignorar->id);
+        }
+
+        return $consulta->exists();
+    }
+
+    private function validarDuplicada(Request $request, ?Clase $clase = null): void
+    {
+        if ($this->existeDuplicada($request->grupo_id, $request->asignatura, $clase)) {
+            throw ValidationException::withMessages(['asignatura' => self::MENSAJE_DUPLICADA]);
+        }
     }
 
     private function esTitular(Clase $clase): bool
@@ -214,7 +294,7 @@ class ClaseController extends Controller
         return [
             'asignatura' => 'required|string|max:150',
             'grupo_id' => ['required', $grupoValido],
-            'inscritos' => 'required|integer|min:1',
+            'inscritos' => 'required|integer|min:1|max:' . config('clases.max_inscritos', 30),
             'observaciones' => 'nullable|string|max:1000',
             'horarios' => 'required|array|min:1',
             'horarios.*.id' => 'nullable|integer',
@@ -276,6 +356,7 @@ class ClaseController extends Controller
             'grupo_id.exists' => 'Selecciona un grupo activo',
             'inscritos.integer' => 'El total de inscritos debe ser un número entero',
             'inscritos.min' => 'El total de inscritos debe ser mayor que cero',
+            'inscritos.max' => 'El total de inscritos no puede ser mayor que :max',
             'horarios.required' => 'Registra al menos un bloque de horario',
             'horarios.min' => 'Registra al menos un bloque de horario',
             'horarios.*.hora_fin.after' => 'En el bloque :position, la hora de fin debe ser posterior a la de inicio',

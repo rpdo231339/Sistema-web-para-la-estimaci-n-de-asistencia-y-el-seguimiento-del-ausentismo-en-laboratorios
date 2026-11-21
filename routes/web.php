@@ -103,6 +103,10 @@ Route::middleware(['usuario', 'rol:administrador'])->group(function () {
         UsuarioController::class, 'cambiarEstado'
     ])->name('usuarios.estado');
 
+    Route::delete('/usuarios/{usuario}', [
+        UsuarioController::class, 'eliminar'
+    ])->name('usuarios.eliminar');
+
         Route::post('/usuarios/{usuario}/activacion', [
         UsuarioController::class, 'reenviarActivacion'
     ])->name('usuarios.activacion');
@@ -171,6 +175,10 @@ Route::middleware(['usuario', 'rol:administrador'])->group(function () {
         EspacioController::class, 'quitarEncargado'
     ])->name('espacios.encargados.quitar');
 
+    Route::delete('/espacios/{espacio}', [
+        EspacioController::class, 'eliminar'
+    ])->name('espacios.eliminar');
+
         Route::get('/grupos', [
         GrupoController::class, 'index'
     ])->name('grupos.index');
@@ -194,6 +202,10 @@ Route::middleware(['usuario', 'rol:administrador'])->group(function () {
     Route::patch('/grupos/{grupo}/estado', [
         GrupoController::class, 'cambiarEstado'
     ])->name('grupos.estado');
+
+    Route::delete('/grupos/{grupo}', [
+        GrupoController::class, 'eliminar'
+    ])->name('grupos.eliminar');
 
     
 
@@ -252,6 +264,10 @@ Route::middleware(['usuario', 'rol:profesor'])->group(function () {
     Route::patch('/clases/{clase}/estado', [
         ClaseController::class, 'cambiarEstado'
     ])->name('clases.estado');
+
+    Route::delete('/clases/{clase}', [
+        ClaseController::class, 'eliminar'
+    ])->name('clases.eliminar');
 
         Route::get('/sesiones', [
         SesionController::class, 'index'

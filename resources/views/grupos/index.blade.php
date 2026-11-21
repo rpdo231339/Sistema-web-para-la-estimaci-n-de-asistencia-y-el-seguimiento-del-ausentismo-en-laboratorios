@@ -91,6 +91,14 @@
                                     <button type="submit" class="btn btn-success btn-sm">Reactivar</button>
                                 </form>
                             @endif
+
+                            @if ($eliminables->contains($grupo->id))
+                                <form action="{{ route('grupos.eliminar', $grupo->id) }}" method="POST" style="display:inline;" class="form-confirmar" data-mensaje="¿Eliminar definitivamente el grupo {{ $grupo->clave }} ({{ $grupo->periodo }})? Esta acción no se puede deshacer.">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="No tiene clases ni sesiones: se puede eliminar por completo"><i class="fa-solid fa-trash"></i> Eliminar</button>
+                                </form>
+                            @endif
                         </td>
                     </tr>
                 @empty

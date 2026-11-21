@@ -97,6 +97,14 @@
                                     <button type="submit" class="btn btn-success btn-sm">Reactivar</button>
                                 </form>
                             @endif
+
+                            @if ($eliminables->contains($clase->id))
+                                <form action="{{ route('clases.eliminar', $clase->id) }}" method="POST" style="display:inline;" class="form-confirmar" data-mensaje="¿Eliminar definitivamente la clase {{ $clase->asignatura }}? Esta acción no se puede deshacer.">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="No tiene sesiones: se puede eliminar por completo"><i class="fa-solid fa-trash"></i> Eliminar</button>
+                                </form>
+                            @endif
                         </td>
                     </tr>
                 @empty

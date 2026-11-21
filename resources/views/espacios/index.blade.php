@@ -96,6 +96,14 @@
                                     <button type="submit" class="btn btn-success btn-sm">Reactivar</button>
                                 </form>
                             @endif
+
+                            @if ($eliminables->contains($espacio->id))
+                                <form action="{{ route('espacios.eliminar', $espacio->id) }}" method="POST" style="display:inline;" class="form-confirmar" data-mensaje="¿Eliminar definitivamente {{ $espacio->nombre }}? Esta acción no se puede deshacer.">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="No se ha usado en ningún bloque ni sesión: se puede eliminar por completo"><i class="fa-solid fa-trash"></i> Eliminar</button>
+                                </form>
+                            @endif
                         </td>
                     </tr>
                 @empty

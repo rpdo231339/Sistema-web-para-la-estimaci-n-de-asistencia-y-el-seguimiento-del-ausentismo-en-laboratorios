@@ -5,7 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Clase;
 use App\Models\Espacio;
 use App\Models\Grupo;
+use App\Models\HorarioClase;
+use App\Models\Sesion;
+use App\Services\AuditoriaService;
 use App\Models\Usuario;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -54,7 +58,14 @@ class EspacioController extends Controller
 
         $espacios = $consulta->orderBy('nombre')->paginate(10)->withQueryString();
 
-        return view('espacios.index', compact('espacios'));
+        // Solo el administrador elimina; y solo espacios que ningun bloque ni sesion ha usado
+        $ids = $espacios->pluck('id');
+        $usados = HorarioClase::whereIn('espacio_id', $ids)->pluck('espacio_id')
+            ->merge(Sesion::whereIn('espacio_id', $ids)->pluck('espacio_id'))
+            ->unique();
+        $eliminables = $usuario->rol === 'administrador' ? $ids->diff($usados)->values() : collect();
+
+        return view('espacios.index', compact('espacios', 'eliminables'));
     }
 
     public function create()
@@ -184,6 +195,34 @@ class EspacioController extends Controller
             'success',
             $nuevoActivo ? 'Espacio reactivado correctamente' : 'Espacio desactivado correctamente'
         );
+    }
+
+    // Solo administrador (la ruta ya lo exige). Si el espacio no se ha usado en ningun bloque ni sesion,
+    // se elimina junto con sus asignaciones de encargado; si se ha usado, se desactiva
+    public function eliminar(Espacio $espacio, AuditoriaService $auditoria)
+    {
+        if (HorarioClase::where('espacio_id', $espacio->id)->exists() || Sesion::where('espacio_id', $espacio->id)->exists()) {
+            return back()->with('error', 'No se puede eliminar definitivamente: el espacio tiene bloques de clase o sesiones relacionadas. Desactívalo para conservar su historial');
+        }
+
+        try {
+            DB::transaction(function () use ($espacio, $auditoria) {
+                $auditoria->registrar('espacios', $espacio->id, 'eliminacion_definitiva', [
+                    'nombre' => $espacio->nombre,
+                    'tipo' => $espacio->tipo,
+                    'ubicacion' => $espacio->ubicacion,
+                    'encargados_asignados' => $espacio->encargados()->count(),
+                ]);
+
+                $espacio->encargados()->detach();
+                $espacio->delete();
+            });
+        } catch (QueryException $e) {
+            return back()->with('error', 'No se pudo eliminar el espacio porque tiene registros relacionados. Desactívalo en su lugar');
+        }
+
+        return redirect()->route('espacios.index')
+            ->with('success', 'Espacio eliminado definitivamente');
     }
 
     // Solo administrador (la ruta ya lo exige)

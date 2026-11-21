@@ -32,7 +32,7 @@
 
     <div class="col-md-4 mb-3">
         <label class="form-label">Total de inscritos</label>
-        <input type="number" name="inscritos" min="1" step="1" class="form-control @error('inscritos') is-invalid @enderror" value="{{ old('inscritos', $clase->inscritos ?? '') }}">
+        <input type="number" name="inscritos" min="1" max="{{ config('clases.max_inscritos', 30) }}" step="1" class="form-control @error('inscritos') is-invalid @enderror" value="{{ old('inscritos', $clase->inscritos ?? '') }}">
         @error('inscritos')
             <div class="text-danger small mt-1">{{ $message }}</div>
         @enderror

@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Clase;
 use App\Models\Grupo;
+use App\Models\Sesion;
+use App\Services\AuditoriaService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -37,10 +41,17 @@ class GrupoController extends Controller
 
         $grupos = $consulta->orderByDesc('periodo')->orderBy('clave')->paginate(10)->withQueryString();
 
+        // Solo se puede eliminar definitivamente un grupo sin clases ni sesiones (ni siquiera inactivas)
+        $ids = $grupos->pluck('id');
+        $usados = Clase::whereIn('grupo_id', $ids)->pluck('grupo_id')
+            ->merge(Sesion::whereIn('grupo_id', $ids)->pluck('grupo_id'))
+            ->unique();
+        $eliminables = $ids->diff($usados)->values();
+
         // Periodos existentes, para el filtro
         $periodos = Grupo::select('periodo')->distinct()->orderByDesc('periodo')->pluck('periodo');
 
-        return view('grupos.index', compact('grupos', 'periodos'));
+        return view('grupos.index', compact('grupos', 'periodos', 'eliminables'));
     }
 
     public function create()
@@ -100,6 +111,30 @@ class GrupoController extends Controller
             'success',
             $nuevoActivo ? 'Grupo reactivado correctamente' : 'Grupo desactivado correctamente'
         );
+    }
+
+    // Eliminacion definitiva: solo si ninguna clase ni sesion usa el grupo; si lo usan, se desactiva
+    public function eliminar(Grupo $grupo, AuditoriaService $auditoria)
+    {
+        if (Clase::where('grupo_id', $grupo->id)->exists() || Sesion::where('grupo_id', $grupo->id)->exists()) {
+            return back()->with('error', 'No se puede eliminar definitivamente: el grupo tiene clases o sesiones relacionadas. Desactívalo para conservar su historial');
+        }
+
+        try {
+            $auditoria->registrar('grupos', $grupo->id, 'eliminacion_definitiva', [
+                'clave' => $grupo->clave,
+                'programa' => $grupo->programa,
+                'cuatrimestre' => $grupo->cuatrimestre,
+                'periodo' => $grupo->periodo,
+            ]);
+
+            $grupo->delete();
+        } catch (QueryException $e) {
+            return back()->with('error', 'No se pudo eliminar el grupo porque tiene registros relacionados. Desactívalo en su lugar');
+        }
+
+        return redirect()->route('grupos.index')
+            ->with('success', 'Grupo eliminado definitivamente');
     }
 
     // Clave y periodo se guardan en mayusculas para que no haya variantes del mismo valor
