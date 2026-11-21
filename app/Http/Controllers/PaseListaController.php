@@ -123,6 +123,17 @@ class PaseListaController extends Controller
             ]);
         }
 
+        // La hora representada tambien debe caer dentro del horario de la sesion
+        $inicioSesion = substr((string) $sesion->hora_inicio, 0, 5);
+        $finSesion = substr((string) $sesion->hora_fin, 0, 5);
+        $horaCaptura = $capturadaLocal->format('H:i');
+
+        if ($horaCaptura < $inicioSesion || $horaCaptura > $finSesion) {
+            throw ValidationException::withMessages([
+                'capturada_en' => "La hora representada debe estar dentro del horario de la sesión ({$inicioSesion}–{$finSesion})",
+            ]);
+        }
+
         if (config('evidencias.rechazar_futuro', true) && $capturadaLocal->copy()->utc()->gt(now()->addMinutes(5))) {
             throw ValidationException::withMessages([
                 'capturada_en' => 'La hora representada no puede estar en el futuro',
