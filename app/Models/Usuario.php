@@ -4,6 +4,7 @@ namespace App\Models;
  
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
  
 class Usuario extends Authenticatable
 {
@@ -60,6 +61,35 @@ class Usuario extends Authenticatable
     public function espaciosAsignados()
     {
         return $this->espacios()->wherePivot('activo', 1);
+    }
+
+    // Tablas y columnas que guardan una referencia a un usuario. Si alguna tiene filas, el usuario ya
+    // tiene historial y solo puede desactivarse (en todas la clave foranea es restrictiva)
+    public const RELACIONES = [
+        ['clases', 'profesor_id'],
+        ['sesiones_clase', 'profesor_id'],
+        ['revisiones_conteo', 'profesor_id'],
+        ['encargado_espacio', 'usuario_id'],
+        ['asistencias', 'confirmado_por'],
+        ['evidencias', 'cargado_por'],
+        ['procesamientos', 'solicitado_por'],
+        ['estimaciones_presencia', 'calculado_por'],
+        ['evaluaciones', 'registrado_por'],
+        ['respaldos', 'administrador_id'],
+        ['notificaciones', 'usuario_id'],
+        ['auditoria', 'usuario_id'],
+    ];
+
+    // De los ids dados, devuelve los que ya tienen algun registro relacionado
+    public static function idsConRelaciones($ids): \Illuminate\Support\Collection
+    {
+        $usados = collect();
+
+        foreach (self::RELACIONES as [$tabla, $columna]) {
+            $usados = $usados->merge(DB::table($tabla)->whereIn($columna, $ids)->distinct()->pluck($columna));
+        }
+
+        return $usados->map(fn ($id) => (int) $id)->unique()->values();
     }
 }
  

@@ -98,6 +98,14 @@
                                     <button type="submit" class="btn btn-success btn-sm">Reactivar</button>
                                 </form>
                             @endif
+
+                            @if ($eliminables->contains($usuario->id))
+                                <form action="{{ route('usuarios.eliminar', $usuario->id) }}" method="POST" style="display:inline;" class="form-confirmar" data-mensaje="¿Eliminar definitivamente a {{ $usuario->nombre }}? Esta acción no se puede deshacer.">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="No tiene registros relacionados: se puede eliminar por completo"><i class="fa-solid fa-trash"></i> Eliminar</button>
+                                </form>
+                            @endif
                         </td>
                     </tr>
                 @empty

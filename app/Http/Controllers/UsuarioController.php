@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Usuario;
 use App\Services\ActivacionService;
+use App\Services\AuditoriaService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -39,7 +41,14 @@ class UsuarioController extends Controller
 
         $usuarios = $consulta->orderBy('nombre')->paginate(10)->withQueryString();
 
-        return view('usuarios.index', compact('usuarios'));
+        // Solo se puede eliminar definitivamente a quien no tiene ningun registro relacionado
+        // (nunca la propia cuenta)
+        $ids = $usuarios->pluck('id')->map(fn ($id) => (int) $id);
+        $eliminables = $ids->diff(Usuario::idsConRelaciones($ids))
+            ->reject(fn ($id) => $id === (int) Auth::id())
+            ->values();
+
+        return view('usuarios.index', compact('usuarios', 'eliminables'));
     }
 
     public function create()
@@ -228,6 +237,51 @@ class UsuarioController extends Controller
         }
 
         return back()->with('success', 'Enlace de activación enviado a ' . $usuario->correo);
+    }
+
+    // Eliminacion definitiva: solo si el usuario no tiene registros relacionados (clases, sesiones,
+    // asignaciones, evidencias, historial...). Si ya tiene historial, solo se desactiva
+    public function eliminar(Usuario $usuario, AuditoriaService $auditoria)
+    {
+        if ((int) $usuario->id === (int) Auth::id()) {
+            return back()->with('error', 'No puedes eliminar tu propia cuenta');
+        }
+
+        try {
+            $error = DB::transaction(function () use ($usuario, $auditoria) {
+                if ($this->dejaSinAdministrador($usuario, $usuario->rol, false)) {
+                    return 'No se puede eliminar al último administrador activo';
+                }
+
+                if (Usuario::idsConRelaciones([$usuario->id])->isNotEmpty()) {
+                    return 'No se puede eliminar definitivamente: el usuario tiene registros relacionados (clases, sesiones, asignaciones o historial). Desactívalo para conservar su historial';
+                }
+
+                // Nunca se guarda la contrasena en la bitacora
+                $auditoria->registrar('usuarios', $usuario->id, 'eliminacion_definitiva', [
+                    'nombre' => $usuario->nombre,
+                    'correo' => $usuario->correo,
+                    'rol' => $usuario->rol,
+                    'activo' => (bool) $usuario->activo,
+                ]);
+
+                // Sesiones abiertas de esta cuenta; los tokens de activacion y recuperacion se borran en cascada
+                DB::table('sessions')->where('user_id', $usuario->id)->delete();
+
+                $usuario->delete();
+
+                return null;
+            });
+        } catch (QueryException $e) {
+            $error = 'No se pudo eliminar el usuario porque tiene registros relacionados. Desactívalo en su lugar';
+        }
+
+        if ($error) {
+            return back()->with('error', $error);
+        }
+
+        return redirect()->route('usuarios.index')
+            ->with('success', 'Usuario eliminado definitivamente');
     }
 
     // Indica si el cambio dejaria al sistema sin administradores activos
